@@ -1,0 +1,929 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>建物診断アシスト｜AI修繕提案・報告書作成</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=BIZ+UDPGothic:wght@400;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#1f2d3a; --ink2:#4a5866; --line:#cfd6dc; --paper:#ffffff; --bg:#e9edef;
+  --chalk:#f2b705; --chalk-ink:#3a2c00; --navy:#1f3b57;
+  --u1:#c62828; --u2:#e46c0a; --u3:#1565c0; --u4:#2e7d32;
+  --radius:6px;
+  --font:"BIZ UDPGothic","Hiragino Sans","Hiragino Kaku Gothic ProN","Yu Gothic UI","Meiryo",sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;font-family:var(--font);color:var(--ink);background:var(--bg);font-size:15px;line-height:1.6}
+button,input,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--chalk);outline-offset:2px}
+
+/* ---------- App bar ---------- */
+.appbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:20;background:var(--navy);color:#fff;
+  display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;padding:10px 16px}
+.brand{font-weight:700;font-size:17px;letter-spacing:.02em;display:flex;align-items:center;gap:10px}
+.brand i{display:inline-block;width:14px;height:14px;background:var(--chalk);transform:rotate(45deg)}
+.brand small{font-weight:400;opacity:.75;font-size:12px}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs button{background:transparent;border:1px solid rgba(255,255,255,.25);color:#fff;padding:6px 12px;border-radius:999px;cursor:pointer;font-size:13px}
+.tabs button.active{background:var(--chalk);color:var(--chalk-ink);border-color:var(--chalk);font-weight:700}
+.appbar .sp{flex:1}
+.appbar .btn{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.3)}
+
+main{max-width:1180px;margin:0 auto;padding:20px 16px 80px}
+.tab{display:none}.tab.active{display:block}
+h2{font-size:20px;margin:0 0 4px}
+.lead{color:var(--ink2);margin:0 0 16px;font-size:14px}
+
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius);padding:16px 18px;margin-bottom:16px}
+.panel h3{margin:0 0 12px;font-size:15px;padding-left:10px;border-left:4px solid var(--chalk)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px 16px}
+.grid .full{grid-column:1/-1}
+label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ink2);font-weight:700}
+label.inline{flex-direction:row;align-items:center;gap:8px;font-weight:400;color:var(--ink);font-size:14px}
+input[type=text],input[type=password],input[type=date],input[type=number],input:not([type]),select,textarea{
+  width:100%;border:1px solid var(--line);border-radius:4px;padding:8px 10px;background:#fff;font-size:14px;font-weight:400;color:var(--ink)}
+textarea{resize:vertical;line-height:1.55}
+.note{font-size:12px;color:var(--ink2);margin:6px 0 0}
+
+.btn{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);background:#fff;border-radius:4px;padding:8px 14px;cursor:pointer;font-size:14px;white-space:nowrap}
+.btn:hover{border-color:var(--ink2)}
+.btn.primary{background:var(--navy);border-color:var(--navy);color:#fff;font-weight:700}
+.btn.accent{background:var(--chalk);border-color:var(--chalk);color:var(--chalk-ink);font-weight:700}
+.btn.sm{padding:5px 10px;font-size:13px}.btn.xs{padding:3px 8px;font-size:12px}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--u1)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px}
+.status{font-size:13px;color:var(--ink2)}
+
+/* ---------- Upload ---------- */
+.drop{border:2px dashed var(--line);border-radius:var(--radius);background:#fff;padding:20px;text-align:center;margin-bottom:14px}
+.drop.over{border-color:var(--chalk);background:#fffbea}
+.drop p{margin:0 0 10px;color:var(--ink2);font-size:14px}
+.drop .btns{display:flex;gap:8px;justify-content:center;flex-wrap:wrap}
+
+/* ---------- Photo cards ---------- */
+.empty{padding:28px;text-align:center;color:var(--ink2);background:#fff;border:1px solid var(--line);border-radius:var(--radius)}
+.pcard{display:grid;grid-template-columns:minmax(260px,420px) 1fr;gap:16px;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:14px;margin-bottom:14px}
+@media (max-width:820px){.pcard{grid-template-columns:1fr}}
+.pcard-media{position:sticky;top:70px;align-self:start}
+@media (max-width:820px){.pcard-media{position:static}}
+.fig{position:relative;display:inline-block;max-width:100%;line-height:0;user-select:none}
+.fig img{display:block;max-width:100%;height:auto;border-radius:3px}
+.mk{position:absolute;border:2.5px solid var(--mc);box-shadow:0 0 0 1px rgba(255,255,255,.8);border-radius:3px;pointer-events:none}
+.mk span{position:absolute;left:-2px;top:-2px;background:var(--mc);color:#fff;font-size:11px;font-weight:700;line-height:1;padding:3px 5px;border-radius:2px 0 3px 0;white-space:nowrap}
+.pcard.drawing .fig{cursor:crosshair;touch-action:none;outline:3px solid var(--chalk)}
+.drawbox{position:absolute;border:2px dashed var(--chalk);background:rgba(242,183,5,.18);pointer-events:none}
+.drawhint{margin-top:8px;font-size:12.5px;background:#fffbea;border:1px solid var(--chalk);padding:6px 8px;border-radius:4px;line-height:1.5}
+.pcard-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:10px}
+.pcard-head strong{font-size:16px}
+.pcard-head .sp{flex:1}
+.badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#eef1f3;color:var(--ink2)}
+.st-loading{background:#fff4cc;color:#7a5a00}.st-done{background:#e3f2e5;color:var(--u4)}.st-error{background:#fde8e8;color:var(--u1)}
+.err{background:#fde8e8;color:var(--u1);font-size:13px;padding:6px 10px;border-radius:4px;margin-bottom:10px}
+.row2{display:grid;grid-template-columns:1fr 1.4fr;gap:10px;margin-bottom:10px}
+@media (max-width:560px){.row2{grid-template-columns:1fr}}
+.findings{display:flex;flex-direction:column;gap:10px;margin:12px 0}
+.fitem{border:1px solid var(--line);border-left:5px solid var(--uc);border-radius:4px;padding:10px}
+.fhead{display:grid;grid-template-columns:auto 1fr 90px 110px;gap:8px;align-items:center;margin-bottom:8px}
+@media (max-width:560px){.fhead{grid-template-columns:auto 1fr}.fhead select{grid-column:span 1}}
+.fno{color:#fff;font-weight:700;font-size:12px;padding:3px 7px;border-radius:3px}
+.ftitle{font-weight:700!important}
+.fgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.fgrid .full{grid-column:1/-1}
+@media (max-width:560px){.fgrid{grid-template-columns:1fr}}
+details{margin-top:8px}
+summary{cursor:pointer;font-size:13px;color:var(--navy);font-weight:700;margin-bottom:6px}
+.factions{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.conf{font-size:12px;color:var(--ink2);margin-right:auto}
+
+/* ---------- Proposal ---------- */
+.plan-row{display:grid;grid-template-columns:150px 1fr 1fr 150px 120px auto;gap:8px;align-items:start;margin-bottom:8px}
+.plan-head{font-size:12px;color:var(--ink2);font-weight:700}
+@media (max-width:900px){.plan-row{grid-template-columns:1fr 1fr}.plan-head{display:none}}
+
+/* ---------- Report (screen) ---------- */
+.report-toolbar{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:12px 16px;margin-bottom:16px}
+.report-wrap{overflow-x:auto;padding-bottom:10px}
+.report{display:flex;flex-direction:column;align-items:center;gap:20px;min-width:210mm}
+.page{width:210mm;min-height:297mm;padding:12mm 13mm;background:#fff;color:#1b1b1b;box-shadow:0 2px 12px rgba(20,40,60,.18);
+  display:flex;flex-direction:column;font-size:9.5pt;line-height:1.55}
+.page *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rhead{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:2px solid var(--navy);padding-bottom:3mm;margin-bottom:5mm}
+.rhead h2{font-size:14pt;margin:0;color:var(--navy)}
+.rhead span{font-size:8.5pt;color:#555}
+.rfoot{margin-top:auto;padding-top:4mm;border-top:1px solid #ccc;display:flex;justify-content:space-between;font-size:8pt;color:#666}
+.rsec{font-size:11pt;font-weight:700;color:var(--navy);margin:5mm 0 2mm;padding-left:2.5mm;border-left:3.5px solid var(--chalk)}
+.rbox{border:1px solid #c9d1d8;background:#f6f8f9;padding:3mm 4mm;border-radius:1.5mm}
+table.rt{width:100%;border-collapse:collapse;font-size:8.5pt}
+table.rt th,table.rt td{border:1px solid #b9c3cc;padding:1.6mm 2mm;vertical-align:top;text-align:left}
+table.rt th{background:#e7edf2;font-weight:700;white-space:nowrap}
+table.rt tr{break-inside:avoid}
+.ub{display:inline-block;color:#fff;font-weight:700;font-size:8pt;padding:.6mm 2mm;border-radius:1mm;white-space:nowrap}
+.no{font-weight:700;white-space:nowrap}
+.muted{color:#666}
+.salesmemo{background:#fff8dc;border-top:1px dashed #d9b300}
+.legend{display:flex;flex-wrap:wrap;gap:3mm 6mm;font-size:8pt;margin-top:2mm}
+.counts{display:flex;gap:3mm;margin:2mm 0 3mm}
+.counts div{flex:1;border:1px solid #c9d1d8;border-top:4px solid var(--c);padding:2mm 3mm;border-radius:1mm}
+.counts b{font-size:15pt;display:block;line-height:1.2}
+.rfig{text-align:center;margin:1mm 0 3mm}
+.rfig .fig img{max-height:100mm;width:auto;max-width:100%}
+.rfig .mk span{font-size:8pt}
+
+/* cover */
+.cover{padding:0;position:relative;overflow:hidden}
+.cv-top{background:var(--navy);color:#fff;padding:20mm 16mm 12mm;position:relative}
+.cv-top::after{content:"";position:absolute;left:16mm;bottom:-3mm;width:40mm;height:6mm;background:var(--chalk)}
+.cv-top .en{font-size:9pt;letter-spacing:.2em;opacity:.7}
+.cv-top h1{font-size:25pt;margin:3mm 0 0;letter-spacing:.06em}
+.cv-body{padding:12mm 16mm 0;flex:1;display:flex;flex-direction:column}
+.cv-cust{font-size:16pt;font-weight:700;border-bottom:1.5px solid #1b1b1b;padding-bottom:2mm;margin-bottom:6mm;display:inline-block;min-width:90mm}
+.cv-photo{height:80mm;margin-bottom:6mm;background:#eef1f3;display:flex;align-items:center;justify-content:center;overflow:hidden;border-radius:1.5mm}
+.cv-photo img{width:100%;height:100%;object-fit:cover}
+.cv-info{width:100%;border-collapse:collapse;font-size:10pt}
+.cv-info th{width:32mm;text-align:left;color:#555;font-weight:400;padding:2mm 0;border-bottom:1px solid #ddd}
+.cv-info td{padding:2mm 0;border-bottom:1px solid #ddd;font-weight:700}
+.cv-company{margin-top:auto;padding:8mm 0 4mm;text-align:right;font-size:10pt;line-height:1.7}
+.cv-company b{font-size:13pt}
+.cover .rfoot{margin:0 16mm 10mm}
+
+/* ---------- Print ---------- */
+@media print{
+  @page{size:A4 portrait;margin:11mm}
+  :root{padding:0}
+  html,body{background:#fff!important}
+  .appbar,.tab:not(#tab-report),.report-toolbar,.noprint{display:none!important}
+  #tab-report{display:block!important}
+  main{padding:0!important;max-width:none!important}
+  .report-wrap{overflow:visible;padding:0}
+  .report{gap:0;min-width:0;display:block}
+  .page{width:auto!important;min-height:272mm!important;padding:0!important;margin:0!important;box-shadow:none!important;break-after:page}
+  .page:last-child{break-after:auto}
+  .cover .cv-top{margin:0}
+  .rfig,.rbox,.counts{break-inside:avoid}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="appbar">
+  <div class="brand"><i></i>建物診断アシスト<small>AI修繕提案・報告書</small></div>
+  <nav class="tabs" id="tabs">
+    <button data-tab="info" class="active">1 基本情報</button>
+    <button data-tab="photos">2 写真・AI解析</button>
+    <button data-tab="proposal">3 提案まとめ</button>
+    <button data-tab="report">4 報告書</button>
+  </nav>
+  <div class="sp"></div>
+  <button class="btn sm" id="btnNew">新規案件</button>
+  <button class="btn sm" id="btnExport">案件を保存</button>
+  <label class="btn sm" style="flex-direction:row;font-weight:400;color:#fff">案件を開く<input type="file" id="fileImport" accept=".json,application/json" hidden></label>
+</header>
+
+<main>
+<!-- ============ 1 基本情報 ============ -->
+<section class="tab active" id="tab-info">
+  <h2>基本情報</h2>
+  <p class="lead">物件の情報はAIの判断材料と報告書の表紙に使われます。築年数や気になっている点を入れるほど、指摘と提案が具体的になります。</p>
+
+  <div class="panel">
+    <h3>Gemini API 設定</h3>
+    <div class="grid">
+      <label>APIキー<input type="password" data-bind="settings.apiKey" placeholder="Google AI Studio で発行したキー" autocomplete="off"></label>
+      <label>モデル<input data-bind="settings.model" list="modelList" placeholder="gemini-2.5-flash"></label>
+      <label class="inline full"><input type="checkbox" data-bind="settings.remember"> この端末のブラウザにAPIキーを記憶する</label>
+    </div>
+    <datalist id="modelList">
+      <option value="gemini-2.5-flash">速くて安価（標準）</option>
+      <option value="gemini-2.5-pro">高精度・低速</option>
+      <option value="gemini-2.5-flash-lite">最速・最安</option>
+    </datalist>
+    <p class="note">キーはブラウザから直接 Google の API に送信されます。案件ファイル（JSON）には保存されません。新しいモデル名もそのまま入力できます。</p>
+  </div>
+
+  <div class="panel">
+    <h3>物件情報</h3>
+    <div class="grid">
+      <label>お客様名<input data-bind="info.customer" placeholder="山田 太郎"></label>
+      <label>物件名<input data-bind="info.property" placeholder="山田様邸"></label>
+      <label class="full">所在地<input data-bind="info.address" placeholder="東京都〇〇区〇〇 1-2-3"></label>
+      <label>建物種別<select data-bind="info.buildingType">
+        <option>戸建住宅</option><option>集合住宅（マンション）</option><option>集合住宅（アパート）</option><option>店舗・事務所</option><option>工場・倉庫</option><option>その他</option></select></label>
+      <label>構造<select data-bind="info.structure">
+        <option value="">不明</option><option>木造</option><option>鉄骨造（S造）</option><option>鉄筋コンクリート造（RC造）</option><option>鉄骨鉄筋コンクリート造（SRC造）</option><option>軽量鉄骨造</option></select></label>
+      <label>築年数（年）<input type="number" min="0" data-bind="info.age" placeholder="22"></label>
+      <label>調査日<input type="date" data-bind="info.date"></label>
+      <label class="full">修繕履歴<input data-bind="info.lastRepair" placeholder="例: 12年前に外壁・屋根塗装（シリコン）"></label>
+      <label class="full">お客様の要望・気になっている点<textarea rows="2" data-bind="info.concern" placeholder="例: 2階の天井にシミ。予算は200万円程度。10年は持たせたい"></textarea></label>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h3>報告書の発行元</h3>
+    <div class="grid">
+      <label class="full">報告書タイトル<input data-bind="info.title"></label>
+      <label>会社名<input data-bind="info.company" placeholder="株式会社〇〇リフォーム"></label>
+      <label>担当者<input data-bind="info.staff" placeholder="営業部 佐藤 一郎"></label>
+      <label>連絡先<input data-bind="info.contact" placeholder="TEL 03-0000-0000"></label>
+    </div>
+  </div>
+  <button class="btn primary" data-goto="photos">写真の登録へ進む</button>
+</section>
+
+<!-- ============ 2 写真・AI解析 ============ -->
+<section class="tab" id="tab-photos">
+  <h2>写真・AI解析</h2>
+  <p class="lead">写真ごとにAIが修繕箇所を指摘します。結果はすべて編集でき、位置の枠も画像上でドラッグして直せます。</p>
+
+  <div class="drop" id="drop">
+    <p>写真をここにドロップ、またはボタンから追加（自動で長辺1600pxに縮小）</p>
+    <div class="btns">
+      <label class="btn accent" style="flex-direction:row">写真を選ぶ<input type="file" id="filePick" accept="image/*" multiple hidden></label>
+      <label class="btn" style="flex-direction:row;font-weight:400;color:var(--ink)">カメラで撮影<input type="file" id="fileCam" accept="image/*" capture="environment" hidden></label>
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="btnAnalyzeAll">未解析の写真をまとめて解析</button>
+    <span class="status" id="analyzeStatus"></span>
+  </div>
+  <datalist id="areaList">
+    <option>屋根</option><option>外壁 北面</option><option>外壁 南面</option><option>外壁 東面</option><option>外壁 西面</option>
+    <option>シーリング（目地）</option><option>サッシ廻り</option><option>雨樋</option><option>軒天</option><option>破風・鼻隠し</option>
+    <option>ベランダ・バルコニー</option><option>屋上防水</option><option>基礎</option><option>鉄部（階段・手すり）</option>
+    <option>室内 天井</option><option>室内 壁</option><option>水廻り</option><option>外構</option>
+  </datalist>
+  <div id="photoList"></div>
+  <div class="toolbar"><button class="btn primary" data-goto="proposal">提案まとめへ進む</button></div>
+</section>
+
+<!-- ============ 3 提案まとめ ============ -->
+<section class="tab" id="tab-proposal">
+  <h2>提案まとめ</h2>
+  <p class="lead">全写真の指摘をもとに、総合所見・優先度別の工事計画・同時施工の提案・営業トークを作ります。生成後に自由に書き換えてください。</p>
+  <div class="toolbar">
+    <button class="btn primary" id="btnProposal">指摘事項から提案を作成</button>
+    <span class="status" id="proposalStatus"></span>
+  </div>
+  <div id="proposalArea"></div>
+</section>
+
+<!-- ============ 4 報告書 ============ -->
+<section class="tab" id="tab-report">
+  <div class="report-toolbar">
+    <button class="btn accent" id="btnPrint">印刷 / PDFで保存（A4）</button>
+    <label class="inline"><input type="checkbox" data-bind="opts.showCost"> 参考概算費用を載せる</label>
+    <label class="inline"><input type="checkbox" data-bind="opts.showConf"> AI確度を載せる</label>
+    <label class="inline"><input type="checkbox" data-bind="opts.showTalk"> 営業メモ・トークを載せる（社内用）</label>
+  </div>
+  <div class="report-wrap"><div class="report" id="report"></div></div>
+</section>
+</main>
+
+<script>
+/* ================= 定数・ユーティリティ ================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const br = s => esc(s).replace(/\n/g, '<br>');
+const uid = () => Math.random().toString(36).slice(2, 10);
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const URG = ['緊急', '早期', '計画', '観察'];
+const URG_INFO = {
+  '緊急': { c: '#c62828', d: '雨漏り・落下等のおそれ。速やかな対応を推奨' },
+  '早期': { c: '#e46c0a', d: '劣化が進行中。1年以内の対応を推奨' },
+  '計画': { c: '#1565c0', d: '1〜3年以内に計画的な対応を推奨' },
+  '観察': { c: '#2e7d32', d: '現状大きな問題なし。定期点検で経過観察' }
+};
+const CATS = ['屋根','外壁','シーリング','雨樋','防水','鉄部','木部','基礎','バルコニー','内装','設備','外構','その他'];
+const today = () => new Date().toISOString().slice(0, 10);
+const fmtDate = d => { if (!d) return ''; const [y, m, dd] = d.split('-'); return `${y}年${+m}月${+dd}日`; };
+
+/* ================= 状態 ================= */
+const defaultState = () => ({
+  settings: { apiKey: '', model: 'gemini-2.5-flash', remember: true },
+  info: { title: '建物劣化診断報告書', customer: '', property: '', address: '', buildingType: '戸建住宅', structure: '',
+          age: '', date: today(), lastRepair: '', concern: '', company: '', staff: '', contact: '' },
+  opts: { showCost: true, showConf: false, showTalk: false },
+  photos: [],
+  proposal: null
+});
+let state = defaultState();
+let busy = false;
+
+/* ================= 保存（設定=localStorage / 案件=IndexedDB） ================= */
+function saveSettings() {
+  try {
+    const s = { ...state.settings };
+    if (!s.remember) s.apiKey = '';
+    localStorage.setItem('rpa-settings', JSON.stringify(s));
+  } catch (e) {}
+}
+function loadSettings() {
+  try { const s = JSON.parse(localStorage.getItem('rpa-settings') || 'null'); if (s) Object.assign(state.settings, s); } catch (e) {}
+}
+const DB = {
+  db: null,
+  open() { return new Promise((res, rej) => { const r = indexedDB.open('repair-proposal-app', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => { this.db = r.result; res(); }; r.onerror = () => rej(r.error); }); },
+  get(k) { return new Promise((res, rej) => { const q = this.db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
+  set(k, v) { return new Promise((res, rej) => { const tx = this.db.transaction('kv', 'readwrite'); tx.objectStore('kv').put(v, k); tx.oncomplete = res; tx.onerror = () => rej(tx.error); }); }
+};
+function projectData() {
+  return {
+    app: 'repair-proposal-app', version: 1,
+    info: state.info, opts: state.opts, proposal: state.proposal,
+    photos: state.photos.map(p => ({ ...p, status: p.status === 'loading' ? 'idle' : p.status }))
+  };
+}
+function applyProject(d) {
+  const base = defaultState();
+  state.info = { ...base.info, ...(d.info || {}) };
+  state.opts = { ...base.opts, ...(d.opts || {}) };
+  state.photos = (d.photos || []).map(p => ({ id: p.id || uid(), area: '', memo: '', overview: '', findings: [], status: 'idle', error: '', ...p }));
+  state.proposal = d.proposal || null;
+}
+let saveTimer;
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => { if (!DB.db) return; try { await DB.set('current', JSON.parse(JSON.stringify(projectData()))); } catch (e) { console.warn('autosave', e); } }, 600);
+}
+
+/* ================= フォームバインド ================= */
+function refreshFields() {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    const [g, k] = el.dataset.bind.split('.');
+    const v = state[g][k];
+    if (el.type === 'checkbox') el.checked = !!v; else el.value = v ?? '';
+  });
+}
+function bindFields() {
+  document.querySelectorAll('[data-bind]').forEach(el => {
+    const ev = (el.type === 'checkbox' || el.tagName === 'SELECT') ? 'change' : 'input';
+    el.addEventListener(ev, () => {
+      const [g, k] = el.dataset.bind.split('.');
+      state[g][k] = el.type === 'checkbox' ? el.checked : el.value;
+      if (g === 'settings') saveSettings(); else scheduleSave();
+      if (g === 'opts') buildReport();
+    });
+  });
+}
+
+/* ================= タブ ================= */
+function showTab(name) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.id === 'tab-' + name));
+  if (name === 'report') buildReport();
+  if (name === 'proposal') renderProposal();
+  window.scrollTo({ top: 0 });
+}
+$('#tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) showTab(b.dataset.tab); });
+document.addEventListener('click', e => { const g = e.target.closest('[data-goto]'); if (g) showTab(g.dataset.goto); });
+
+/* ================= 画像読み込み ================= */
+function loadImage(file) {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 1600; const s = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * s), h = Math.round(img.height * s);
+        const c = document.createElement('canvas'); c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
+        res({ dataUrl: c.toDataURL('image/jpeg', 0.85), w, h });
+      };
+      img.onerror = () => rej(new Error('画像を読み込めませんでした: ' + file.name));
+      img.src = r.result;
+    };
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(file);
+  });
+}
+async function addFiles(files) {
+  const list = [...files].filter(f => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name));
+  for (const f of list) {
+    try {
+      const im = await loadImage(f);
+      state.photos.push({ id: uid(), dataUrl: im.dataUrl, w: im.w, h: im.h, area: '', memo: '', overview: '', findings: [], status: 'idle', error: '' });
+    } catch (e) { alert(e.message + '\n（HEIC形式の場合は、JPEGで書き出してから追加してください）'); }
+  }
+  renderPhotos(); scheduleSave();
+}
+$('#filePick').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+$('#fileCam').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => addFiles(e.dataTransfer.files));
+
+/* ================= 位置枠 ================= */
+function normBox(b) {
+  if (!Array.isArray(b) || b.length !== 4) return null;
+  const v = b.map(x => Math.max(0, Math.min(1000, Number(x))));
+  if (v.some(x => isNaN(x))) return null;
+  if (v[2] < v[0]) [v[0], v[2]] = [v[2], v[0]];
+  if (v[3] < v[1]) [v[1], v[3]] = [v[3], v[1]];
+  if (v[2] - v[0] < 8 || v[3] - v[1] < 8) return null;
+  return v;
+}
+function markers(p, n) {
+  return p.findings.map((f, j) => {
+    const b = normBox(f.box); if (!b) return '';
+    const c = URG_INFO[f.urgency]?.c || '#555';
+    return `<div class="mk" style="--mc:${c};left:${b[1] / 10}%;top:${b[0] / 10}%;width:${(b[3] - b[1]) / 10}%;height:${(b[2] - b[0]) / 10}%"><span>${n}-${j + 1}</span></div>`;
+  }).join('');
+}
+
+/* ================= 写真カード描画 ================= */
+function opt(list, cur) { return list.map(v => `<option ${v === cur ? 'selected' : ''}>${esc(v)}</option>`).join(''); }
+function findingEditor(f, n, j) {
+  const c = URG_INFO[f.urgency]?.c || '#555';
+  const ta = (k, label, rows = 2, cls = '') => `<label class="${cls}">${label}<textarea rows="${rows}" data-ff="${k}">${esc(f[k])}</textarea></label>`;
+  return `<div class="fitem" data-fi="${j}" style="--uc:${c}">
+    <div class="fhead">
+      <span class="fno" style="background:${c}">${n}-${j + 1}</span>
+      <input class="ftitle" data-ff="title" value="${esc(f.title)}" placeholder="指摘の見出し（例: 外壁のひび割れ）" aria-label="指摘の見出し">
+      <select data-ff="urgency" aria-label="劣化度">${opt(URG, f.urgency)}</select>
+      <select data-ff="category" aria-label="分類">${opt(CATS, f.category)}</select>
+    </div>
+    <div class="fgrid">
+      ${ta('symptom', '状態・根拠（写真のどこに何が見えるか）')}
+      ${ta('remedy', '推奨対応（工法・材料）')}
+    </div>
+    <details>
+      <summary>原因・放置リスク・費用・時期・営業ポイント</summary>
+      <div class="fgrid">
+        ${ta('cause', '推定原因')}
+        ${ta('risk', '放置した場合のリスク')}
+        ${ta('cost', '参考概算費用（前提条件）')}
+        ${ta('timing', '推奨時期', 1)}
+        ${ta('sales', '営業ポイント（お客様への伝え方）', 3, 'full')}
+      </div>
+    </details>
+    <div class="factions">
+      <span class="conf">${f.confidence ? 'AI確度: ' + esc(f.confidence) : '手動入力'}</span>
+      <button class="btn xs" data-act="box">${normBox(f.box) ? '位置を描き直す' : '位置を指定'}</button>
+      ${normBox(f.box) ? '<button class="btn xs ghost" data-act="unbox">位置を外す</button>' : ''}
+      <button class="btn xs ghost danger" data-act="delf">指摘を削除</button>
+    </div>
+  </div>`;
+}
+function photoCard(p, i) {
+  const n = i + 1;
+  const st = { idle: '未解析', loading: '解析中…', done: `指摘 ${p.findings.length}件`, error: '解析エラー' }[p.status] || '';
+  return `<article class="pcard" data-pid="${p.id}">
+    <div class="pcard-media">
+      <div class="fig"><img src="${p.dataUrl}" alt="写真${n}" draggable="false">${markers(p, n)}</div>
+      <div class="drawhint" hidden>画像の上をドラッグして指摘箇所を囲んでください。<button class="btn xs" data-act="cancelDraw">やめる</button></div>
+    </div>
+    <div>
+      <div class="pcard-head">
+        <strong>写真 ${n}</strong><span class="badge st-${p.status}">${st}</span>
+        <span class="sp"></span>
+        <button class="btn xs ghost" data-act="up" ${i === 0 ? 'disabled' : ''} aria-label="上へ">↑</button>
+        <button class="btn xs ghost" data-act="down" ${i === state.photos.length - 1 ? 'disabled' : ''} aria-label="下へ">↓</button>
+        <button class="btn sm primary" data-act="analyze" ${p.status === 'loading' ? 'disabled' : ''}>${p.status === 'done' ? '再解析' : 'AI解析'}</button>
+        <button class="btn sm ghost danger" data-act="del">写真を削除</button>
+      </div>
+      ${p.error ? `<div class="err">${esc(p.error)}</div>` : ''}
+      <div class="row2">
+        <label>撮影部位<input list="areaList" data-pf="area" value="${esc(p.area)}" placeholder="例: 外壁 南面"></label>
+        <label>現場メモ（AIへの補足）<input data-pf="memo" value="${esc(p.memo)}" placeholder="例: 2階窓下。雨の日にシミが出るとのこと"></label>
+      </div>
+      <label>写真の所見<textarea rows="2" data-pf="overview" placeholder="AI解析後に自動で入ります">${esc(p.overview)}</textarea></label>
+      <div class="findings">${p.findings.map((f, j) => findingEditor(f, n, j)).join('')}</div>
+      <button class="btn sm" data-act="addf">＋ 指摘を手動で追加</button>
+    </div>
+  </article>`;
+}
+function renderPhotos() {
+  const el = $('#photoList');
+  el.innerHTML = state.photos.length ? state.photos.map(photoCard).join('')
+    : '<div class="empty">写真がまだありません。「写真を選ぶ」か「カメラで撮影」から追加してください。</div>';
+  const idle = state.photos.filter(p => p.status !== 'done').length;
+  $('#btnAnalyzeAll').disabled = busy || idle === 0;
+}
+
+/* ---- 写真カードの入力・操作 ---- */
+const getP = el => state.photos.find(p => p.id === el.closest('[data-pid]')?.dataset.pid);
+$('#photoList').addEventListener('input', e => {
+  const p = getP(e.target); if (!p) return;
+  if (e.target.dataset.pf) { p[e.target.dataset.pf] = e.target.value; scheduleSave(); }
+  else if (e.target.dataset.ff && e.target.tagName !== 'SELECT') {
+    const f = p.findings[+e.target.closest('[data-fi]').dataset.fi]; f[e.target.dataset.ff] = e.target.value; scheduleSave();
+  }
+});
+$('#photoList').addEventListener('change', e => {
+  if (e.target.tagName !== 'SELECT' || !e.target.dataset.ff) return;
+  const p = getP(e.target); const f = p.findings[+e.target.closest('[data-fi]').dataset.fi];
+  f[e.target.dataset.ff] = e.target.value; renderPhotos(); scheduleSave();
+});
+$('#photoList').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const p = getP(b); if (!p) return;
+  const i = state.photos.indexOf(p);
+  const fi = b.closest('[data-fi]') ? +b.closest('[data-fi]').dataset.fi : -1;
+  switch (b.dataset.act) {
+    case 'analyze':
+      if (p.findings.length && !confirm('再解析すると、この写真の指摘（手入力・編集分を含む）は置き換わります。続けますか？')) return;
+      analyzePhoto(p); return;
+    case 'del': if (!confirm(`写真 ${i + 1} を削除しますか？`)) return; state.photos.splice(i, 1); break;
+    case 'up': if (i > 0) [state.photos[i - 1], state.photos[i]] = [state.photos[i], state.photos[i - 1]]; break;
+    case 'down': if (i < state.photos.length - 1) [state.photos[i + 1], state.photos[i]] = [state.photos[i], state.photos[i + 1]]; break;
+    case 'addf':
+      p.findings.push({ title: '', category: 'その他', urgency: '計画', symptom: '', cause: '', risk: '', remedy: '', cost: '', timing: '', sales: '', confidence: '', box: null });
+      if (p.status === 'idle') p.status = 'done'; break;
+    case 'delf': if (!confirm('この指摘を削除しますか？')) return; p.findings.splice(fi, 1); break;
+    case 'unbox': p.findings[fi].box = null; break;
+    case 'box': startDraw(p.id, fi); return;
+    case 'cancelDraw': endDraw(); return;
+    default: return;
+  }
+  renderPhotos(); scheduleSave();
+});
+
+/* ---- 画像上でのドラッグによる位置指定 ---- */
+let draw = null;
+function startDraw(pid, fi) {
+  endDraw();
+  draw = { pid, fi };
+  const card = document.querySelector(`[data-pid="${pid}"]`);
+  card.classList.add('drawing'); card.querySelector('.drawhint').hidden = false;
+  card.querySelector('.fig').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+}
+function endDraw() {
+  document.querySelectorAll('.pcard.drawing').forEach(c => { c.classList.remove('drawing'); c.querySelector('.drawhint').hidden = true; });
+  draw = null;
+}
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && draw) endDraw(); });
+$('#photoList').addEventListener('pointerdown', e => {
+  if (!draw) return;
+  const fig = e.target.closest('.pcard.drawing .fig'); if (!fig) return;
+  e.preventDefault();
+  const r = fig.getBoundingClientRect();
+  const sx = e.clientX - r.left, sy = e.clientY - r.top;
+  const box = document.createElement('div'); box.className = 'drawbox'; fig.appendChild(box);
+  fig.setPointerCapture(e.pointerId);
+  const clamp = (v, m) => Math.max(0, Math.min(m, v));
+  let cur = { x: sx, y: sy };
+  const move = ev => {
+    cur = { x: clamp(ev.clientX - r.left, r.width), y: clamp(ev.clientY - r.top, r.height) };
+    Object.assign(box.style, { left: Math.min(sx, cur.x) + 'px', top: Math.min(sy, cur.y) + 'px', width: Math.abs(cur.x - sx) + 'px', height: Math.abs(cur.y - sy) + 'px' });
+  };
+  const up = () => {
+    fig.removeEventListener('pointermove', move); fig.removeEventListener('pointerup', up); fig.removeEventListener('pointercancel', up);
+    const p = state.photos.find(x => x.id === draw.pid);
+    const b = normBox([Math.min(sy, cur.y) / r.height * 1000, Math.min(sx, cur.x) / r.width * 1000, Math.max(sy, cur.y) / r.height * 1000, Math.max(sx, cur.x) / r.width * 1000].map(Math.round));
+    box.remove();
+    if (!b) return; // 小さすぎる＝クリックのみ。描画モード継続
+    p.findings[draw.fi].box = b;
+    draw = null; renderPhotos(); scheduleSave();
+  };
+  fig.addEventListener('pointermove', move); fig.addEventListener('pointerup', up); fig.addEventListener('pointercancel', up);
+});
+
+/* ================= Gemini API ================= */
+async function callGemini(parts, schema) {
+  const key = (state.settings.apiKey || '').trim();
+  const model = (state.settings.model || 'gemini-2.5-flash').trim();
+  if (!key) throw new Error('APIキーが未設定です。「1 基本情報」で Gemini の APIキーを入力してください。');
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
+  const body = { contents: [{ role: 'user', parts }], generationConfig: { temperature: 0.3, responseMimeType: 'application/json', responseSchema: schema } };
+  let lastErr;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let res;
+    try {
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-goog-api-key': key }, body: JSON.stringify(body) });
+    } catch (e) { throw new Error('通信できませんでした。ネットワーク接続を確認してください。'); }
+    if (res.status === 429 || res.status === 503) { lastErr = new Error(`APIが混雑しているか利用上限に達しました（${res.status}）。少し待ってから再度お試しください。`); await sleep(2500 * (attempt + 1)); continue; }
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      const m = data.error?.message || `HTTP ${res.status}`;
+      if (res.status === 400 && /API key/i.test(m)) throw new Error('APIキーが正しくありません。キーを確認してください。');
+      if (res.status === 404) throw new Error(`モデル「${model}」が見つかりません。モデル名を確認してください。`);
+      throw new Error('Gemini APIエラー: ' + m);
+    }
+    const cand = data.candidates?.[0];
+    if (!cand) throw new Error('AIから応答がありませんでした' + (data.promptFeedback?.blockReason ? `（理由: ${data.promptFeedback.blockReason}）` : ''));
+    const text = (cand.content?.parts || []).filter(x => x.text && !x.thought).map(x => x.text).join('');
+    if (!text) throw new Error('AIの応答が空でした（終了理由: ' + (cand.finishReason || '不明') + '）');
+    return parseJSON(text);
+  }
+  throw lastErr;
+}
+function parseJSON(t) {
+  const s = t.replace(/```json|```/g, '').trim();
+  try { return JSON.parse(s); } catch (e) {
+    const m = s.match(/\{[\s\S]*\}/); if (m) { try { return JSON.parse(m[0]); } catch (e2) {} }
+    throw new Error('AIの応答を読み取れませんでした。もう一度解析してください。');
+  }
+}
+const STR = d => ({ type: 'STRING', description: d });
+const PHOTO_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    area: STR('写真に写っている建物の部位（例: 外壁 南面 2階窓下）'),
+    overview: STR('写真全体の所見。良好な点も含め2〜3文'),
+    findings: {
+      type: 'ARRAY',
+      items: {
+        type: 'OBJECT',
+        properties: {
+          title: STR('指摘の見出し（20字以内）'),
+          category: { type: 'STRING', enum: CATS },
+          urgency: { type: 'STRING', enum: URG },
+          symptom: STR('写真のどこに・何が・どの程度見えるか'),
+          cause: STR('推定原因'),
+          risk: STR('放置した場合のリスク'),
+          remedy: STR('推奨する工法・材料・工程'),
+          cost: STR('参考概算費用と前提条件'),
+          timing: STR('推奨時期'),
+          sales: STR('お客様への伝え方・提案のポイント'),
+          confidence: { type: 'STRING', enum: ['高', '中', '低'] },
+          box_2d: { type: 'ARRAY', items: { type: 'INTEGER' }, description: '[ymin, xmin, ymax, xmax] 0〜1000で正規化' }
+        },
+        required: ['title', 'category', 'urgency', 'symptom', 'cause', 'risk', 'remedy', 'cost', 'timing', 'sales', 'confidence', 'box_2d']
+      }
+    }
+  },
+  required: ['area', 'overview', 'findings']
+};
+const PROPOSAL_SCHEMA = {
+  type: 'OBJECT',
+  properties: {
+    summary: STR('お客様向けの総合所見'),
+    plan: { type: 'ARRAY', items: { type: 'OBJECT', properties: {
+      phase: STR('段階名'), items: STR('対象の指摘Noと工事内容'), reason: STR('根拠・優先する理由'), cost: STR('参考概算費用と前提'), timing: STR('実施時期')
+    }, required: ['phase', 'items', 'reason', 'cost', 'timing'] } },
+    package: STR('同時施工・グレード別などの具体的な提案'),
+    talk: STR('営業担当者向けトークスクリプト（社内用）'),
+    checks: STR('現地で追加確認すべき事項')
+  },
+  required: ['summary', 'plan', 'package', 'talk', 'checks']
+};
+function contextText() {
+  const I = state.info;
+  return `【物件情報】
+- 建物種別: ${I.buildingType || '不明'}
+- 構造: ${I.structure || '不明'}
+- 築年数: ${I.age ? I.age + '年' : '不明'}
+- 所在地: ${I.address || '不明'}
+- 修繕履歴: ${I.lastRepair || '不明'}
+- お客様の要望・気になっている点: ${I.concern || '特になし'}`;
+}
+function photoPrompt(p) {
+  return `あなたは一級建築士であり、建物の劣化診断とリフォーム提案に精通した専門家です。
+添付の現地調査写真を観察し、修繕・メンテナンスが必要と考えられる箇所を指摘してください。
+この結果はリフォーム営業担当者がお客様に具体的で信頼される提案をするために使われます。
+
+${contextText()}
+
+【この写真について】
+- 撮影部位: ${p.area || '未記入（写真から判断）'}
+- 現場メモ: ${p.memo || 'なし'}
+
+【指摘のルール】
+- 写真で実際に確認できる事実を根拠にすること。写真から断定できない内容は「〜の可能性」と書き、confidence を「低」または「中」にする。
+- 誇張や不安を煽る表現は使わない。お客様が自分の目で確かめられるよう、位置・形状・大きさの目安を具体的に書く（例: 2階窓の右下から斜めに約40cm、幅0.3mm程度のひび割れ）。
+- urgency の基準: 緊急=雨漏り・落下・構造に関わる危険があり速やかに対応／早期=劣化が進行中で1年以内／計画=1〜3年以内に計画的に対応／観察=現状問題なく定期点検で経過観察。
+- remedy: 工法・使用材料・工程を具体的に。選択肢がある場合はグレード違い（例: シリコン／フッ素／無機）も示す。
+- cost: 日本の一般的な相場をもとにした参考概算を単価や数量の前提付きで（例: 外壁塗装 3,000〜4,500円/㎡、足場は別途 800〜1,000円/㎡）。写真から数量が読めない場合は単価のみ示し「数量は現地実測後」と書く。
+- sales: お客様に伝えるときの分かりやすい説明と、関連工事を同時に行うメリット（足場の共用など）。
+- box_2d: 該当箇所を囲む矩形を [ymin, xmin, ymax, xmax]（画像の左上を0、右下を1000とする正規化座標）で示す。
+- 重要度の高い順に最大8件。劣化が見当たらない場合は findings を空にし、overview に良好な点を記載する。
+- area には写真に写っている部位を簡潔に書く。
+- 出力はすべて日本語。`;
+}
+function proposalPrompt(all) {
+  const list = all.map(f => ({ No: f.no, 部位: f.area, 見出し: f.title, 分類: f.category, 劣化度: f.urgency, 状態: f.symptom, 原因: f.cause, リスク: f.risk, 推奨対応: f.remedy, 概算: f.cost, 時期: f.timing }));
+  return `あなたは建物診断とリフォーム提案に精通した専門家です。以下は現地調査写真から抽出した指摘事項です。
+営業担当者がお客様に、具体的で納得感があり、信頼される提案を行えるように内容をまとめてください。
+
+${contextText()}
+
+【指摘事項】
+${JSON.stringify(list, null, 1)}
+
+【作成ルール】
+- summary: お客様向けの総合所見。建物全体の状態と、優先して対応すべき箇所とその理由を、専門用語を避けて4〜6文で。不安を煽らず事実に基づく。
+- plan: 優先度別の実施計画を2〜4段階（例: 第1期 早めに実施／第2期 1〜2年以内／第3期 中長期）。items には対象の指摘No（例: 1-2）と工事内容、reason には根拠、cost には足場など共通仮設を含む参考概算と前提、timing には実施時期。
+- package: 足場の共用など同時施工による費用・工期のメリット、グレード別（松竹梅）の選択肢、お客様の要望（予算・期間）への合わせ方を具体的に。
+- talk: 営業担当者向けトークスクリプト（社内用）。導入 → 現状の説明（写真を見せながら）→ 放置リスク → 提案 → 次のアクション の流れで。よくある質問と回答例を2〜3個含める。
+- checks: 写真だけでは判断できず、現地で追加確認すべき事項（打診調査、散水試験、含水率測定、小屋裏・床下の確認など）。
+- 出力はすべて日本語。`;
+}
+
+/* ---- 解析実行 ---- */
+async function analyzePhoto(p) {
+  p.status = 'loading'; p.error = ''; renderPhotos();
+  try {
+    const d = await callGemini([{ text: photoPrompt(p) }, { inline_data: { mime_type: 'image/jpeg', data: p.dataUrl.split(',')[1] } }], PHOTO_SCHEMA);
+    if (!p.area && d.area) p.area = d.area;
+    p.overview = d.overview || '';
+    p.findings = (d.findings || []).map(f => ({
+      title: f.title || '', category: CATS.includes(f.category) ? f.category : 'その他', urgency: URG.includes(f.urgency) ? f.urgency : '計画',
+      symptom: f.symptom || '', cause: f.cause || '', risk: f.risk || '', remedy: f.remedy || '', cost: f.cost || '', timing: f.timing || '',
+      sales: f.sales || '', confidence: f.confidence || '', box: normBox(f.box_2d)
+    }));
+    p.status = 'done';
+  } catch (e) { p.status = 'error'; p.error = e.message; }
+  renderPhotos(); scheduleSave();
+}
+$('#btnAnalyzeAll').addEventListener('click', async () => {
+  const targets = state.photos.filter(p => p.status !== 'done');
+  if (!targets.length) return;
+  busy = true; renderPhotos();
+  for (let k = 0; k < targets.length; k++) {
+    $('#analyzeStatus').textContent = `解析中 ${k + 1} / ${targets.length} 枚…`;
+    await analyzePhoto(targets[k]);
+  }
+  busy = false;
+  const ng = targets.filter(p => p.status === 'error').length;
+  $('#analyzeStatus').textContent = ng ? `${targets.length - ng}枚を解析、${ng}枚はエラー（各写真の「AI解析」で再実行できます）` : `${targets.length}枚の解析が完了しました`;
+  renderPhotos();
+});
+
+/* ================= 提案まとめ ================= */
+function collectFindings() {
+  const out = [];
+  state.photos.forEach((p, i) => p.findings.forEach((f, j) => out.push({ ...f, no: `${i + 1}-${j + 1}`, area: p.area, photo: i + 1 })));
+  return out;
+}
+$('#btnProposal').addEventListener('click', async () => {
+  const all = collectFindings();
+  if (!all.length) { $('#proposalStatus').textContent = '指摘事項がありません。先に「2 写真・AI解析」で写真を解析してください。'; return; }
+  if (state.proposal && !confirm('作成済みの提案（編集内容を含む）を置き換えます。続けますか？')) return;
+  const btn = $('#btnProposal'); btn.disabled = true;
+  $('#proposalStatus').textContent = `${all.length}件の指摘から提案を作成中…`;
+  try {
+    const d = await callGemini([{ text: proposalPrompt(all) }], PROPOSAL_SCHEMA);
+    state.proposal = { summary: d.summary || '', plan: d.plan || [], package: d.package || '', talk: d.talk || '', checks: d.checks || '' };
+    $('#proposalStatus').textContent = '作成しました。内容を確認・編集してください。';
+    scheduleSave();
+  } catch (e) { $('#proposalStatus').textContent = e.message; }
+  btn.disabled = false; renderProposal();
+});
+function renderProposal() {
+  const P = state.proposal, el = $('#proposalArea');
+  if (!P) { el.innerHTML = `<div class="empty">現在 ${collectFindings().length} 件の指摘があります。「指摘事項から提案を作成」を押してください。</div>`; return; }
+  const ta = (k, rows) => `<textarea rows="${rows}" data-pk="${k}">${esc(P[k])}</textarea>`;
+  el.innerHTML = `
+    <div class="panel"><h3>総合所見（お客様向け）</h3>${ta('summary', 5)}</div>
+    <div class="panel"><h3>優先度別の実施計画</h3>
+      <div class="plan-row plan-head"><span>段階</span><span>工事内容（指摘No）</span><span>理由</span><span>参考概算</span><span>時期</span><span></span></div>
+      ${P.plan.map((r, i) => `<div class="plan-row" data-pr="${i}">
+        <textarea rows="2" data-pc="phase" aria-label="段階">${esc(r.phase)}</textarea>
+        <textarea rows="3" data-pc="items" aria-label="工事内容">${esc(r.items)}</textarea>
+        <textarea rows="3" data-pc="reason" aria-label="理由">${esc(r.reason)}</textarea>
+        <textarea rows="3" data-pc="cost" aria-label="参考概算">${esc(r.cost)}</textarea>
+        <textarea rows="2" data-pc="timing" aria-label="時期">${esc(r.timing)}</textarea>
+        <button class="btn xs ghost danger" data-pact="delrow">削除</button></div>`).join('')}
+      <button class="btn sm" data-pact="addrow">＋ 行を追加</button>
+    </div>
+    <div class="panel"><h3>同時施工・グレード別の提案</h3>${ta('package', 5)}</div>
+    <div class="panel"><h3>現地で追加確認すべき事項</h3>${ta('checks', 3)}</div>
+    <div class="panel"><h3>営業トークスクリプト（社内用・報告書には通常載せません）</h3>${ta('talk', 10)}</div>`;
+}
+$('#proposalArea').addEventListener('input', e => {
+  const P = state.proposal; if (!P) return;
+  if (e.target.dataset.pk) P[e.target.dataset.pk] = e.target.value;
+  else if (e.target.dataset.pc) P.plan[+e.target.closest('[data-pr]').dataset.pr][e.target.dataset.pc] = e.target.value;
+  scheduleSave();
+});
+$('#proposalArea').addEventListener('click', e => {
+  const b = e.target.closest('[data-pact]'); if (!b) return;
+  if (b.dataset.pact === 'addrow') state.proposal.plan.push({ phase: '', items: '', reason: '', cost: '', timing: '' });
+  if (b.dataset.pact === 'delrow') state.proposal.plan.splice(+b.closest('[data-pr]').dataset.pr, 1);
+  renderProposal(); scheduleSave();
+});
+
+/* ================= 報告書（A4） ================= */
+const ub = u => `<span class="ub" style="background:${URG_INFO[u]?.c || '#555'}">${esc(u)}</span>`;
+function buildReport() {
+  const I = state.info, O = state.opts, P = state.proposal;
+  const all = collectFindings();
+  const el = $('#report');
+  if (!state.photos.length) { el.innerHTML = '<div class="empty">写真を登録すると報告書が作成されます。</div>'; return; }
+  let pg = 0;
+  const foot = () => `<div class="rfoot"><span>${esc(I.company)}</span><span>${esc(I.property || I.customer)}　${esc(I.title)}</span><span>${++pg}</span></div>`;
+  const head = t => `<div class="rhead"><h2>${esc(t)}</h2><span>${esc(I.property || '')}${I.date ? '　調査日 ' + fmtDate(I.date) : ''}</span></div>`;
+  const pages = [];
+
+  // 表紙
+  pages.push(`<section class="page cover">
+    <div class="cv-top"><div class="en">BUILDING INSPECTION REPORT</div><h1>${esc(I.title)}</h1></div>
+    <div class="cv-body">
+      <div><div class="cv-cust">${esc(I.customer || '　　　　　')} 様</div></div>
+      <div class="cv-photo"><img src="${state.photos[0].dataUrl}" alt=""></div>
+      <table class="cv-info">
+        <tr><th>物件名</th><td>${esc(I.property)}</td></tr>
+        <tr><th>所在地</th><td>${esc(I.address)}</td></tr>
+        <tr><th>建物種別・構造</th><td>${esc([I.buildingType, I.structure].filter(Boolean).join('／'))}</td></tr>
+        <tr><th>築年数</th><td>${I.age ? esc(I.age) + '年' : ''}</td></tr>
+        <tr><th>調査日</th><td>${fmtDate(I.date)}</td></tr>
+        <tr><th>調査内容</th><td>目視・写真による外観調査（写真 ${state.photos.length} 枚／指摘 ${all.length} 件）</td></tr>
+      </table>
+      <div class="cv-company"><b>${esc(I.company)}</b><br>${esc(I.staff)}<br>${esc(I.contact)}</div>
+    </div>
+    ${foot()}
+  </section>`);
+
+  // 診断結果サマリー
+  const cnt = u => all.filter(f => f.urgency === u).length;
+  const sorted = [...all].sort((a, b) => URG.indexOf(a.urgency) - URG.indexOf(b.urgency) || a.photo - b.photo);
+  pages.push(`<section class="page">
+    ${head('診断結果のまとめ')}
+    <div class="rsec">総合所見</div>
+    <div class="rbox">${P?.summary ? br(P.summary) : '<span class="muted">（「3 提案まとめ」で総合所見を作成すると、ここに表示されます）</span>'}</div>
+    <div class="rsec">劣化度別の件数</div>
+    <div class="counts">${URG.map(u => `<div style="--c:${URG_INFO[u].c}">${ub(u)}<b>${cnt(u)}<small style="font-size:9pt"> 件</small></b></div>`).join('')}</div>
+    <div class="legend">${URG.map(u => `<span>${ub(u)} ${esc(URG_INFO[u].d)}</span>`).join('')}</div>
+    <div class="rsec">指摘事項一覧（劣化度の高い順）</div>
+    <table class="rt">
+      <thead><tr><th>No.</th><th>部位</th><th>指摘内容</th><th>劣化度</th><th>推奨対応</th><th>時期</th></tr></thead>
+      <tbody>${sorted.map(f => `<tr><td class="no">${f.no}</td><td>${esc(f.area || f.category)}</td><td><b>${esc(f.title)}</b></td><td>${ub(f.urgency)}</td><td>${br(f.remedy)}</td><td>${esc(f.timing)}</td></tr>`).join('') || '<tr><td colspan="6" class="muted">指摘事項はありません</td></tr>'}</tbody>
+    </table>
+    ${foot()}
+  </section>`);
+
+  // 写真ごとの詳細
+  state.photos.forEach((p, i) => {
+    const n = i + 1;
+    const rows = p.findings.map((f, j) => `
+      <tr><td class="no">${n}-${j + 1}</td>
+        <td><b>${esc(f.title)}</b>　${ub(f.urgency)}${O.showConf && f.confidence ? ` <span class="muted">確度:${esc(f.confidence)}</span>` : ''}<br>${br(f.symptom)}</td>
+        <td>${f.cause ? `<b>原因</b> ${br(f.cause)}<br>` : ''}${f.risk ? `<b>放置リスク</b> ${br(f.risk)}` : ''}</td>
+        <td>${br(f.remedy)}${f.timing ? `<br><b>時期</b> ${esc(f.timing)}` : ''}${O.showCost && f.cost ? `<br><b>参考概算</b> ${br(f.cost)}` : ''}</td></tr>
+      ${O.showTalk && f.sales ? `<tr class="salesmemo"><td></td><td colspan="3"><b>営業メモ（社内用）</b> ${br(f.sales)}</td></tr>` : ''}`).join('');
+    pages.push(`<section class="page">
+      ${head(`写真 ${n}　${p.area || ''}`)}
+      <div class="rfig"><div class="fig"><img src="${p.dataUrl}" alt="写真${n}">${markers(p, n)}</div></div>
+      ${p.overview || p.memo ? `<div class="rbox">${p.overview ? br(p.overview) : ''}${p.memo ? `<div class="muted" style="margin-top:1mm">現場メモ: ${esc(p.memo)}</div>` : ''}</div>` : ''}
+      <div class="rsec">指摘事項</div>
+      ${p.findings.length ? `<table class="rt"><thead><tr><th style="width:11mm">No.</th><th style="width:34%">状態</th><th>原因・リスク</th><th style="width:30%">推奨対応</th></tr></thead><tbody>${rows}</tbody></table>`
+        : '<div class="rbox muted">この写真では修繕が必要な箇所は確認されませんでした。</div>'}
+      ${foot()}
+    </section>`);
+  });
+
+  // ご提案
+  if (P) {
+    pages.push(`<section class="page">
+      ${head('ご提案')}
+      <div class="rsec">優先度別の実施計画</div>
+      <table class="rt"><thead><tr><th>段階</th><th>工事内容</th><th>理由</th>${O.showCost ? '<th>参考概算</th>' : ''}<th>時期</th></tr></thead>
+      <tbody>${P.plan.map(r => `<tr><td><b>${br(r.phase)}</b></td><td>${br(r.items)}</td><td>${br(r.reason)}</td>${O.showCost ? `<td>${br(r.cost)}</td>` : ''}<td>${br(r.timing)}</td></tr>`).join('')}</tbody></table>
+      ${P.package ? `<div class="rsec">工事の組み合わせとグレードのご提案</div><div class="rbox">${br(P.package)}</div>` : ''}
+      ${P.checks ? `<div class="rsec">今後の詳細調査について</div><div class="rbox">${br(P.checks)}</div>` : ''}
+      ${O.showTalk && P.talk ? `<div class="rsec">営業トークスクリプト（社内用）</div><div class="rbox" style="background:#fff8dc">${br(P.talk)}</div>` : ''}
+      <div class="rsec">ご留意事項</div>
+      <div style="font-size:8pt;color:#555">本報告書は、調査日時点の目視および写真による外観調査の結果を、AIによる画像解析で補助してまとめたものです。外から見えない内部の劣化や構造の状態を保証するものではありません。正確な工事内容・数量・金額は、現地での詳細調査と実測の上、別途お見積りにてご提示いたします。${O.showCost ? '記載の参考概算は一般的な相場に基づく目安です。' : ''}</div>
+      ${foot()}
+    </section>`);
+  }
+  el.innerHTML = pages.join('');
+}
+$('#btnPrint').addEventListener('click', () => { buildReport(); setTimeout(() => window.print(), 100); });
+window.addEventListener('beforeprint', () => { if (!$('#tab-report').classList.contains('active')) showTab('report'); else buildReport(); });
+
+/* ================= 案件の保存・読込・新規 ================= */
+$('#btnExport').addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(projectData())], { type: 'application/json' });
+  const a = document.createElement('a');
+  const name = (state.info.property || state.info.customer || '案件').replace(/[\\/:*?"<>|\s]/g, '_');
+  a.href = URL.createObjectURL(blob); a.download = `診断_${name}_${state.info.date || today()}.json`;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
+$('#fileImport').addEventListener('change', async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text());
+    if (!d.photos || !d.info) throw new Error();
+    if (state.photos.length && !confirm('現在の案件を閉じて、選んだ案件を開きます。よろしいですか？')) return;
+    applyProject(d); refreshFields(); renderPhotos(); renderProposal(); scheduleSave(); showTab('photos');
+  } catch (err) { alert('このファイルは案件ファイルとして読み込めませんでした。'); }
+});
+$('#btnNew').addEventListener('click', () => {
+  if (!confirm('現在の案件を閉じて新規案件を始めます。必要なら先に「案件を保存」してください。続けますか？')) return;
+  const keepCompany = { company: state.info.company, staff: state.info.staff, contact: state.info.contact };
+  applyProject({ info: { ...keepCompany, date: today() }, photos: [] });
+  refreshFields(); renderPhotos(); renderProposal(); scheduleSave(); showTab('info');
+});
+
+/* ================= 起動 ================= */
+(async function init() {
+  loadSettings();
+  try { await DB.open(); const d = await DB.get('current'); if (d) applyProject(d); } catch (e) { console.warn('IndexedDB unavailable', e); }
+  refreshFields(); bindFields(); renderPhotos(); renderProposal();
+})();
+</script>
+</body>
+</html>
