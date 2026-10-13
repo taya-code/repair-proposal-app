@@ -292,7 +292,11 @@ table.rt tr{break-inside:avoid}
 /* ================= 定数・ユーティリティ ================= */
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const br = s => esc(s).replace(/\n/g, '<br>');
+// AIが改行を文字の「\n」として返すことがあるため、本物の改行に直す
+const nl = s => String(s ?? '').replace(/\\r\\n|\\n|\\r/g, '\n');
+const fixNL = v => typeof v === 'string' ? nl(v) : Array.isArray(v) ? v.map(fixNL)
+  : (v && typeof v === 'object') ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, k === 'dataUrl' ? x : fixNL(x)])) : v;
+const br = s => esc(nl(s)).replace(/\r?\n/g, '<br>');
 const uid = () => Math.random().toString(36).slice(2, 10);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const URG = ['緊急', '早期', '計画', '観察'];
@@ -347,8 +351,8 @@ function applyProject(d) {
   const base = defaultState();
   state.info = { ...base.info, ...(d.info || {}) };
   state.opts = { ...base.opts, ...(d.opts || {}) };
-  state.photos = (d.photos || []).map(p => ({ id: p.id || uid(), area: '', memo: '', overview: '', findings: [], status: 'idle', error: '', ...p }));
-  state.proposal = d.proposal || null;
+  state.photos = (d.photos || []).map(p => fixNL({ id: p.id || uid(), area: '', memo: '', overview: '', findings: [], status: 'idle', error: '', ...p }));
+  state.proposal = d.proposal ? fixNL(d.proposal) : null;
 }
 let saveTimer;
 function scheduleSave() {
@@ -621,8 +625,8 @@ async function callGemini(parts, schema) {
 }
 function parseJSON(t) {
   const s = t.replace(/```json|```/g, '').trim();
-  try { return JSON.parse(s); } catch (e) {
-    const m = s.match(/\{[\s\S]*\}/); if (m) { try { return JSON.parse(m[0]); } catch (e2) {} }
+  try { return fixNL(JSON.parse(s)); } catch (e) {
+    const m = s.match(/\{[\s\S]*\}/); if (m) { try { return fixNL(JSON.parse(m[0])); } catch (e2) {} }
     throw new Error('AIの応答を読み取れませんでした。もう一度解析してください。');
   }
 }
@@ -718,6 +722,7 @@ ${JSON.stringify(list, null, 1)}
 - package: 足場の共用など同時施工による費用・工期のメリット、グレード別（松竹梅）の選択肢、お客様の要望（予算・期間）への合わせ方を具体的に。
 - talk: 営業担当者向けトークスクリプト（社内用）。導入 → 現状の説明（写真を見せながら）→ 放置リスク → 提案 → 次のアクション の流れで。よくある質問と回答例を2〜3個含める。
 - checks: 写真だけでは判断できず、現地で追加確認すべき事項（打診調査、散水試験、含水率測定、小屋裏・床下の確認など）。
+- 改行が必要な箇所は実際の改行を使い、「\\n」という文字は書かない。
 - 出力はすべて日本語。`;
 }
 
